@@ -6,25 +6,30 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.utils import to_categorical
 
-# Load the synthetic labeled data
-df = pd.read_csv('labeled_attacks.csv')
+# Load the synthetic labeled data from a .parquet file
+df = pd.read_parquet('Thursday-15-02-2018_pruned_normalized.parquet')
 
-# Convert 'Time' column to datetime
-df['Time'] = pd.to_datetime(df['Time'])
+# Convert 'Time' column to datetime if it exists
+if 'Time' in df.columns:
+    df['Time'] = pd.to_datetime(df['Time'])
 
-# Extract features and labels (example)
-feature_columns = ['Duration', 'SrcPackets', 'DstPackets', 'SrcBytes',
-                   'DstBytes', 'SrcPort', 'DstPort']
+# Identify the feature columns (all columns except 'AttackType')
+label_column = 'Label'
+feature_columns = [col for col in df.columns if col != label_column]
+
+# Extract features and labels
 X = df[feature_columns]
-y = df['AttackType']
+y = df[label_column]
 
 # Encode labels
 label_encoder = LabelEncoder()
 y = label_encoder.fit_transform(y)
 
-# Split the data into training and test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
-                                                    random_state=42)
+# Split the data into training (70%) and testing (30%) sets
+X_train_val, X_final_test, y_train_val, y_final_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Further split the training data into training (70%) and validation (30%) sets
+X_train, X_test, y_train, y_test = train_test_split(X_train_val, y_train_val, test_size=0.3, random_state=42)
 
 # Standardize features
 scaler = StandardScaler()
@@ -53,35 +58,19 @@ loss, accuracy = model.evaluate(X_test, y_test)
 print(f'Test set accuracy = {accuracy}')
 
 # #########################################################
-# Load new data for tests
-new_data_df = pd.read_csv('data_for_tests.csv')
+# Extract features from the final testing part
+X_final_test_features = X_final_test[feature_columns]
 
-# Extract features
-X_new = new_data_df[feature_columns]
-X_new = scaler.transform(X_new)
+# Standardize features
+X_final_test_features = scaler.transform(X_final_test_features)
 
 # Make predictions
-predictions = model.predict(X_new)
+predictions = model.predict(X_final_test_features)
 predicted_labels = np.argmax(predictions, axis=1)
 
-# Map predictions to attack types
-attack_mapping = {
-    0: 'DNS Amplification',
-    1: 'Malware Communication',
-    2: 'DoS',
-    3: 'Port Scanning',
-    4: 'Brute Force',
-    5: 'Data Exfiltration',
-    6: 'MITM',
-    7: 'UDP Flood',
-    8: 'SQL Injection',
-    9: 'ARP Spoofing',
-    10: 'DNS Tunnelling',
-    11: 'ICMP Ping DOS',
-    12: 'FTP DOS',
-    13: 'DNS Rebinding',
-    14: 'TCP SYN Flood'
-}
+# Create a dynamic attack mapping based on the labels present in the dataset
+attack_mapping = {index: label for index,
+                  label in enumerate(label_encoder.classes_)}
 
 # Convert predictions to attack type names
 predicted_attack_types = [attack_mapping[label] for label in predicted_labels]
