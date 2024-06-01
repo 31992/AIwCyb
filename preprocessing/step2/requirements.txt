@@ -2,3 +2,5 @@ pandas
 pyarrow
 scikit-learn
 numpy
+seaborn
+matplotlib
