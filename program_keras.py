@@ -7,13 +7,10 @@ from keras.layers import Dense
 from keras.utils import to_categorical
 
 # Load the synthetic labeled data from a .parquet file
-df = pd.read_parquet('Thursday-15-02-2018_pruned_normalized.parquet')
+# df = pd.read_parquet('Thursday-15-02-2018_pruned_normalized.parquet')
+df = pd.read_parquet('Wednesday-14-02-2018_pruned_normalized.parquet')
 
-# Convert 'Time' column to datetime if it exists
-if 'Time' in df.columns:
-    df['Time'] = pd.to_datetime(df['Time'])
-
-# Identify the feature columns (all columns except 'AttackType')
+# Identify the feature columns (all columns except AttackType)
 label_column = 'Label'
 feature_columns = [col for col in df.columns if col != label_column]
 
@@ -30,6 +27,11 @@ X_train_val, X_final_test, y_train_val, y_final_test = train_test_split(X, y, te
 
 # Further split the training data into training (70%) and validation (30%) sets
 X_train, X_test, y_train, y_test = train_test_split(X_train_val, y_train_val, test_size=0.3, random_state=42)
+
+print("Training data sample (X_train):")
+print(X_train[:5])
+print("\nTraining labels sample (y_train):")
+print(y_train[:5])
 
 # Standardize features
 scaler = StandardScaler()
@@ -58,6 +60,12 @@ loss, accuracy = model.evaluate(X_test, y_test)
 print(f'Test set accuracy = {accuracy}')
 
 # #########################################################
+
+print("\nFinal test data sample (X_final_test):")
+print(X_final_test[:5])
+print("\nFinal test labels sample (y_final_test):")
+print(y_final_test[:5])
+
 # Extract features from the final testing part
 X_final_test_features = X_final_test[feature_columns]
 
