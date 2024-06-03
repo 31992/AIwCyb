@@ -5,38 +5,59 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.utils import to_categorical
+import matplotlib.pyplot as plt
+
+# Define a static seed for reproducibility
+SEED = 42
 
 # Load the synthetic labeled data from a .parquet file
-# df = pd.read_parquet('Thursday-15-02-2018_pruned_normalized.parquet')
-df = pd.read_parquet('Wednesday-14-02-2018_pruned_normalized.parquet')
+df = pd.read_parquet('data_pruned_normalized.parquet')
 
-# Identify the feature columns (all columns except AttackType)
+# Split the data into training (80%) and testing (20%) sets
+train_val_df, test_df = train_test_split(df, test_size=0.2, random_state=SEED)
+
+# Identify the label column
 label_column = 'Label'
-feature_columns = [col for col in df.columns if col != label_column]
 
-# Extract features and labels
-X = df[feature_columns]
-y = df[label_column]
+# Separate features and labels for training and validation set
+X_train_val = train_val_df.drop(columns=[label_column])
+y_train_val = train_val_df[label_column]
 
-# Encode labels
-label_encoder = LabelEncoder()
-y = label_encoder.fit_transform(y)
+print("\nFeatures for training set")
+for col in X_train_val.columns:
+    print(col + ", ")
 
-# Split the data into training (70%) and testing (30%) sets
-X_train_val, X_final_test, y_train_val, y_final_test = train_test_split(X, y, test_size=0.3, random_state=42)
+# Separate features and labels for the testing set
+X_final_test = test_df.drop(columns=[label_column])
+y_final_test = test_df[label_column]
 
-# Further split the training data into training (70%) and validation (30%) sets
-X_train, X_test, y_train, y_test = train_test_split(X_train_val, y_train_val, test_size=0.3, random_state=42)
+# Further split the training and validation data into 70% and 30%
+X_train, X_test, y_train, y_test = train_test_split(X_train_val,
+                                                    y_train_val,
+                                                    test_size=0.3,
+                                                    random_state=SEED)
 
+# Print fragments of the datasets after splitting
 print("Training data sample (X_train):")
-print(X_train[:5])
+print(X_train[:20])
+
 print("\nTraining labels sample (y_train):")
-print(y_train[:5])
+print(y_train[:20])
+
+print("\nFinal test data sample (X_final_test):")
+print(X_final_test[:20])
 
 # Standardize features
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
+X_final_test = scaler.transform(X_final_test)
+
+# Encode labels
+label_encoder = LabelEncoder()
+y_train = label_encoder.fit_transform(y_train)  # fitting labels from train set
+y_test = label_encoder.transform(y_test)  # just transform based on fitted
+y_final_test = label_encoder.transform(y_final_test)
 
 # Convert labels to categorical format
 y_train = to_categorical(y_train)
@@ -52,28 +73,18 @@ model.add(Dense(y_train.shape[1], activation='softmax'))
 model.compile(optimizer='adam', loss='categorical_crossentropy',
               metrics=['accuracy'])
 
-# Train the model
-model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.2)
+# Train the model and capture the history
+history = model.fit(X_train, y_train, epochs=10, batch_size=32,
+                    validation_split=0.2)
 
 # Evaluate the model on the test set
 loss, accuracy = model.evaluate(X_test, y_test)
 print(f'Test set accuracy = {accuracy}')
 
-# #########################################################
-
-print("\nFinal test data sample (X_final_test):")
-print(X_final_test[:5])
-print("\nFinal test labels sample (y_final_test):")
-print(y_final_test[:5])
-
-# Extract features from the final testing part
-X_final_test_features = X_final_test[feature_columns]
-
-# Standardize features
-X_final_test_features = scaler.transform(X_final_test_features)
+# ######################################################### final test
 
 # Make predictions
-predictions = model.predict(X_final_test_features)
+predictions = model.predict(X_final_test)
 predicted_labels = np.argmax(predictions, axis=1)
 
 # Create a dynamic attack mapping based on the labels present in the dataset
@@ -88,3 +99,13 @@ attack_counts = pd.Series(predicted_attack_types).value_counts()
 
 # Show the attack counts
 print(attack_counts)
+
+# Plot training & validation accuracy values
+plt.figure(figsize=(10, 5))
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(loc='upper left')
+plt.show()
